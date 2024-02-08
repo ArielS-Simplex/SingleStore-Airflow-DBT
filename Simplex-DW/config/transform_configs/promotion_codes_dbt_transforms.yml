@@ -1,0 +1,9 @@
+  transform_id : 'promotion_codes_events'
+  schedule_interval : "13/15 * * * *"
+  models:
+  - id: "promotion_codes"
+    select: "@models/promotion_codes/promotion_codes.sql"
+    test: "true"
+  schema_name: 'data_model'
+  table_name: 'promotion_codes'
+  source_conn_id: 'snowflake_conn'

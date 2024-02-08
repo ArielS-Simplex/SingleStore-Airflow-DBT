@@ -1,0 +1,26 @@
+{
+  "mapping_name": "config_pg_prod_public_payments_auth_request_proc_requests",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 200000,
+  "batch_min_rows": 10,
+  "schedule": "01/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "backward_update_period": "1 hour",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "payments_auth_request_proc_requests",
+      "order_field": "created_at",
+      "sql": "SELECT proc_request_id, auth_request_id, created_at FROM public.payments_auth_request_proc_requests",
+      "load_method": "insert-only",
+      "key_field": "proc_request_id",
+      "volume": "high",
+      "tags": ["ms2"]
+    }
+  ]
+}

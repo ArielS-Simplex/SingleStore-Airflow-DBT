@@ -1,0 +1,26 @@
+{
+  "mapping_name": "config_pg_prod_public_retrieval_requests",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "02/12 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "retrieval_requests",
+      "order_field": "id",
+      "sql": "SELECT id, payment_id, inserted_at, posted_at, reason_code, user_id,(raw_data - ARRAY['Name','bank_reference','issuer_bank','card_number','pan','payment_account_identifier','customer_phone']) || jsonb_build_object('customer_phone', etl.f_mask_text(raw_data ->> 'customer_phone')) AS raw_data,raw_data->>'customer_email' AS raw_data_customer_email,raw_data->>'email_address' AS raw_data_email_address,batch_id FROM public.retrieval_requests",
+      "load_method": "insert-only",
+      "columns_to_hash":"raw_data_customer_email,raw_data_email_address",
+      "key_field": "id",
+      "tags": ["ms1"]
+
+    }
+  ]
+}

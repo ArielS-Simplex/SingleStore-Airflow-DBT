@@ -1,0 +1,80 @@
+'public.verification_requests':
+  verification_requests_STATUS=expired:
+    part_1:   "select count(1)
+              from VERIFICATION_REQUESTS
+              WHERE STATUS='expired' and INSERTED_AT <"
+    part_2: " - INTERVAL '14 days' and INSERTED_AT>='2020-01-01'"
+    utc_time: True
+'public.payments':
+  public.payments_status=2:
+    part_1: "with status_2 as (select status
+                                   FROM public.payments
+                                   WHERE created_at >= '2020-01-01'
+                                     AND created_at <="
+    part_2: " - INTERVAL '4 days')
+                 select count(*)
+                 from status_2
+                 where status = 2 "
+    utc_time: True
+  public.payments_status=13:
+    part_1: "with status_13 as (SELECT created_at, updated_at
+                                FROM public.payments
+                                WHERE status = 13)
+             SELECT count(*)
+             FROM status_13
+             WHERE  created_at >= '2020-01-01'
+                AND created_at <= current_date - INTERVAL '3 days'
+                AND updated_at<=date_trunc('hour', current_timestamp ) - INTERVAL '2 hour' "
+'public.r_payments':
+  r_payments:
+    part_1: "SELECT COUNT(*)
+             FROM PUBLIC.R_PAYMENTS
+             WHERE INSERTED_AT BETWEEN '2020-01-01' AND date_trunc('hour', current_timestamp ) - INTERVAL '2 hour'"
+'public.partners':
+  partners:
+    part_1: "SELECT COUNT(*) FROM PUBLIC.PARTNERS
+             WHERE CREATED_AT < date_trunc('hour', current_timestamp ) - INTERVAL '2 hour'
+"
+'public.processors_mids':
+  processors_mids:
+    part_1: "SELECT COUNT(*) FROM PUBLIC.PROCESSORS_MIDS
+"
+'public.retrieval_request_types':
+  retrieval_request_types:
+    part_1: "SELECT COUNT(*) FROM PUBLIC.RETRIEVAL_REQUEST_TYPES
+"
+'public.status_meaning':
+  status_meaning:
+    part_1: "SELECT COUNT(*) FROM PUBLIC.STATUS_MEANING
+"
+'public.fraud_warning_types':
+  fraud_warning_types:
+    part_1: "SELECT COUNT(*) FROM PUBLIC.FRAUD_WARNING_TYPES
+"
+'threeds_svc.threeds_versioning_requests':
+  threeds_versioning_requests:
+    part_1: "SELECT COUNT(*)
+             FROM THREEDS_SVC.THREEDS_VERSIONING_REQUESTS AS tvr join threeds_svc.threeds t ON t.id = tvr.threeds_id
+             WHERE T.CREATED_AT < date_trunc('hour', current_timestamp ) - INTERVAL '2 hour'
+"
+'fee_calculation.applied_rules':
+  applied_rules:
+    part_1: "SELECT COUNT(*)
+             FROM fee_calculation.applied_rules
+             WHERE CREATED_AT < date_trunc('hour', current_timestamp ) - INTERVAL '2 hour' 
+              AND CREATED_AT>= current_date - INTERVAL '7 days'
+"
+'fee_calculation.calculations_result':
+  calculations_result:
+    part_1: "SELECT COUNT(*)
+             FROM fee_calculation.calculations_result
+             WHERE CREATED_AT < date_trunc('hour', current_timestamp ) - INTERVAL '2 hour'
+               AND CREATED_AT>= current_date - INTERVAL '7 days'
+"
+'public.ab_test_decisions':
+  ab_test_decisions:
+    part_1: "SELECT COUNT(*)
+             FROM public.ab_test_decisions
+             WHERE INSERTED_AT < date_trunc('hour', current_timestamp ) - INTERVAL '2 hour'
+             AND INSERTED_AT >= '2023-01-01'
+"

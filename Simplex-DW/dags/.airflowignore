@@ -1,0 +1,4 @@
+# glob syntax
+/*pg_data_sync.py
+/*datalake_flow.py
+scripts/.*

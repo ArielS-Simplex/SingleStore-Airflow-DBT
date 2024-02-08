@@ -1,0 +1,27 @@
+{
+  "mapping_name": "config_pg_prod_public_execution_quotes.json",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "09/12 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+{
+      "schema_name": "public",
+      "table_name": "execution_quotes",
+      "order_field": "created_at",
+      "sql": "SELECT payment_id, quote_id, created_at, quote_type FROM public.execution_quotes",
+      "load_method": "insert-only",
+      "sql_condition": "",
+      "volume": "high",
+      "key_field": "quote_id",
+      "tags": ["ms1"]
+
+    }
+  ]
+}

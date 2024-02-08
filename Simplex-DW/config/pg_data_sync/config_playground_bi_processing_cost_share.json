@@ -1,0 +1,22 @@
+{
+  "mapping_name": "config_pg_playground_bi_processing_cost_share",
+  "source_conn_id": "postgres_playground",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "playground-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PLAYGROUND_PG",
+
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "47 */12 * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "bi",
+      "table_name": "processing_cost_share",
+      "sql": "select bb_card_brand, processing_cost_reigon, start_date, end_date, bin_country_domestic, final_card_type, processor, processing_cost_share from  bi.processing_cost_share",
+      "load_method": "truncate-insert"
+    }
+  ]
+}

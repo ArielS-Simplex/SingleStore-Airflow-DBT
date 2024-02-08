@@ -1,0 +1,9 @@
+  transform_id : 'payments_payments_flat'
+  schedule_interval : "19/15 * * * *"
+  models:
+  - id: "payments_payments_flat"
+    select: "@models/payments_payments_flat/payments_payments_flat.sql"
+    test: "true"
+  schema_name: 'data_model'
+  table_name: 'payments_payments_flat'
+  source_conn_id: 'snowflake_conn'

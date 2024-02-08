@@ -1,0 +1,9 @@
+  transform_id : 'pix_events'
+  schedule_interval : "19/15 * * * *"
+  models:
+  - id: "pix"
+    select: "@models/pix/pix.sql"
+    test: "true"
+  schema_name: 'data_model'
+  table_name: 'pix'
+  source_conn_id: 'snowflake_conn'

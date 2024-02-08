@@ -1,0 +1,25 @@
+{
+  "mapping_name": "config_pg_prod_cerdit_cards_creadit_cards",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "05/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "credit_cards",
+      "table_name": "credit_cards",
+      "order_field": "id",
+      "sql": "SELECT id, credit_card_base_id, state, country, created_at, wallet_type,jsonb_set(((data #- '{raw_data,zip}' #- '{raw_data,city}' #- '{raw_data,phone}'#- '{raw_data,email}' #- '{raw_data,payment_method,display_name}' #- '{raw_data,address}' #- '{raw_data,token,payment_method,display_name}' #- '{raw_data,billing_contact}' #- '{raw_data,date_of_birth}' #- '{raw_data,last_name_card}' #- '{raw_data,first_name_card}' #- '{raw_data,shipping_contact}' #- '{raw_data,credit_card_number}' #- '{token,payment_method,display_name}'#- '{token,address,payment_method,display_name}') - ARRAY['city','line2','line1','address_lines','given_name','sub_locality','first_name','last_name','family_name','phone', 'zip','locality','postal_code','address','email_address','email']) || jsonb_build_object('phone',etl.f_mask_text(data ->> 'phone'), 'date_of_birth',etl.f_mask_date(data->'raw_data'->>'date_of_birth', 'DD/MM/YYYY')), '{raw_data,phone}', COALESCE(('\"' || etl.f_mask_text(data->'raw_data'->> 'phone') || '\"')::jsonb,'null')) AS DATA,data->>'email_address' AS data_email_address,data->>'email' AS data_email,data->'raw_data'->>'email' AS data_raw_data_email FROM credit_cards.credit_cards",
+      "load_method": "insert-only",
+      "columns_to_hash": "data_email_address,data_email,data_raw_data_email",
+      "key_field": "id",
+      "tags": ["MS1"]
+    }
+  ]
+}

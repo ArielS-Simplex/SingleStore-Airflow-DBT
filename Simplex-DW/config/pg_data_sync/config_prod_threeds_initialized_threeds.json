@@ -1,0 +1,24 @@
+{
+  "mapping_name": "config_pg_prod_threeds_initialized_threeds",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 100000,
+  "batch_min_rows": 10,
+  "schedule": "03/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+{
+      "schema_name": "threeds",
+      "table_name": "initialized_threeds",
+      "order_field": "created_at",
+      "sql": "SELECT id,request_id,processor_name,merchant_simplex_name,transaction_id,transaction_status,transaction_type,payment_instrument_id,amount,currency_code,version,scheme,order_id,method_url,method_payload,server_trans_id,is_fingerprinting_required,etl.f_mask_text(holder_phone) as holder_phone ,holder_email, callback_url,errors,created_at FROM threeds.initialized_threeds",
+      "load_method": "insert-only",
+      "key_field": "id",
+      "columns_to_hash":"holder_email"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+CREATE TABLE liquidities.quotes(id int,
+liquidity_name string,
+base_currency string,
+base_amount number(20,4),
+quote_currency string,
+quote_amount number(38,4),
+quote_id string,
+expiry_ts TIMESTAMP_NTZ,
+rate number(20,4),
+created_at TIMESTAMP_NTZ,
+pp_params variant, dw_created_at timestamp_ntz not null default CURRENT_TIMESTAMP(0)::TIMESTAMP_NTZ);

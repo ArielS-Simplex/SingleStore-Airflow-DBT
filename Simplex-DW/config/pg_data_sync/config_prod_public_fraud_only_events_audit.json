@@ -1,0 +1,24 @@
+{
+  "mapping_name": "config_pg_prod_public_fraud_only_events_audit",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "08/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "fraud_only_events_audit",
+      "order_field": "id",
+      "sql": "SELECT id,payment_uuid,(request #- '{user,last_name}'#- '{user,email_details,email}' #- '{user,seller,email}'#- '{user,payment_request,email}'#- '{user,first_name}' #- '{user,last_login,ip}' #- '{seller,address,zip}' #- '{seller,address,city}' #- '{seller,address,address_line1}' #- '{seller,address,address_line2}' #- '{seller,last_name}' #- '{seller,first_name}' #- '{seller,id}' #- '{seller,last_logins,0,ip}' #- '{seller,phone_details}' #- '{session,ip}' #- '{payment_methods,0,auth_response,billing_address,zip}' #- '{payment_methods,0,auth_response,billing_address,city}' #- '{payment_methods,0,auth_response,billing_address,address_line1}' #- '{payment_methods,0,auth_response,billing_address,address_line2}') || JSONB_BUILD_OBJECT('ip', etl.f_ip2country(request -> 'user' -> 'last_login' ->> 'ip'), 'sellerip', etl.f_ip2country(request -> 'seller' -> 'last_login' -> 0 ->> 'ip'), 'phone', etl.f_mask_text(request -> 'seller' -> 'phone_details' ->> 'phone'), 'sessionip', etl.f_ip2country(request -> 'session' ->> 'ip')) AS request,request->'user'->'email_details'->>'email' AS request_user_email_details_email,request->'seller'->>'email' AS request_seller_email,request->'payment_request'->>'email' AS request_payment_request_email,(response #- '{request,user,last_name}'#- '{request,seller,email}'#- '{request,payment_request,email}' #- '{request,user,first_name}' #- '{request,user,last_login,ip}'#- '{request,user,email_details,email}' #- '{request,user,phone_details,phone}' #- '{request,seller,address,zip}' #- '{request,seller,address,city}' #- '{request,seller,address,address_line1}' #- '{request,seller,address,address_line2}' #- '{request,seller,last_name}' #- '{request,seller,first_name}' #- '{request,seller,id}' #- '{request,seller,last_logins,0,ip}' #- '{request,seller,phone_details,phone}' #- '{request,session,ip}' #- '{request,payment_methods,0,auth_response,billing_address,zip}' #- '{request,payment_methods,0,auth_response,billing_address,city}' #- '{request,payment_methods,0,auth_response,billing_address,address_line1}' #- '{request,payment_methods,0,auth_response,billing_address,address_line2}') || JSONB_BUILD_OBJECT('ip', etl.f_ip2country(response -> 'request' -> 'user' -> 'last_login' ->> 'ip'), 'phone', etl.f_mask_text(response -> 'request' -> 'user' -> 'phone_details' ->> 'phone'), 'sellerip', etl.f_ip2country(response -> 'request' -> 'seller' -> 'last_login' -> 0 ->> 'ip'), 'phone', etl.f_mask_text(response -> 'request' -> 'seller' -> 'phone_details' ->> 'phone'), 'sessionip', etl.f_ip2country(response -> 'request' -> 'session' ->> 'ip')) AS response,response->'request'->'seller'->>'email' AS response_request_seller_email,response->'request'->'payment_request'->>'email' AS response_request_payment_request_email,inserted_at,updated_at,partner_id FROM public.fraud_only_events_audit",
+      "load_method": "insert-only",
+      "columns_to_hash":"request_user_email_details_email,request_seller_email,request_payment_request_email,response_request_seller_email,response_request_payment_request_email",
+      "key_field": "id"
+    }
+  ]
+}

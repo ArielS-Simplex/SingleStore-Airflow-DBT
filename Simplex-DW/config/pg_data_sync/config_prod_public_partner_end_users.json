@@ -1,0 +1,28 @@
+{
+  "mapping_name": "config_pg_prod_public_partner_end_users",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 100000,
+  "batch_min_rows": 10,
+  "schedule": "09/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "backward_update_period": "1 minute",
+  "rules": [
+        {
+      "schema_name": "public",
+      "table_name": "partner_end_users",
+      "order_field": "updated_at",
+      "sql": "SELECT id, partner_id, partner_account_id, verified_at, account_tier, account_tier_updated_at, email, etl.f_mask_text(phone) as phone, country, state,etl.f_mask_date(date_of_birth::text) as date_of_birth, gender, two_fa_enabled, two_fa_updated_at, (passport_details-'document_id'-'cc_last_4_digits'-'zip'-'city'-'address'-'id_expiration'-'phone' -'last_name'-'first_name'-'id_doc_type' -'date_of_birth') || jsonb_build_object('phone',etl.f_mask_text(passport_details->>'phone'),'date_of_birth', etl.f_mask_date(passport_details->>'date_of_birth')) AS passport_details, (utility_bill_details -'cc_last_4_digits' #- '{address,zip}'  #- '{address,city}' #- '{address,address_line_1}') AS utility_bill_details, created_at, updated_at, (signup_login-'ip' -'cookie_session_id') AS signup_login, kyc_updated_at, token_created_at, cap_data, past_tx_data, (first_logins -> 0 #-'{ip}' #-'{cookie_session_id}')  AS first_logins, (last_logins -> 0 #-'{ip}' #-'{cookie_session_id}')  AS last_logins, last_verified_email, etl.f_maxmind_ip2country(signup_login->>'ip') AS signup_login_mm_country, etl.f_maxmind_ip2state(signup_login->>'ip') AS signup_login_mm_state, etl.f_maxmind_ip2country(first_logins->0->>'ip') AS first_logins_mm_country, etl.f_maxmind_ip2state(first_logins->0->>'ip') AS first_logins_mm_state, etl.f_maxmind_ip2country(last_logins->0->>'ip') AS last_logins_mm_country , etl.f_maxmind_ip2state(last_logins->0->>'ip')  AS last_logins_mm_state FROM public.partner_end_users",
+      "sql_condition": "",
+      "load_method": "merge",
+      "key_field": "id",
+      "columns_to_hash":"email,last_verified_email",
+      "tags": ["ms1"]
+
+    }
+  ]
+}

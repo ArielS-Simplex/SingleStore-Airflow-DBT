@@ -1,0 +1,3 @@
+schema_name: 'SALESFORCE'
+table_name: 'CHARGEBACKS_LOG_TEMP'
+source_conn_id: 'snowlake_conn'

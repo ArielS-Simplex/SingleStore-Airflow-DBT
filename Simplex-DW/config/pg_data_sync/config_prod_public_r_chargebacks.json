@@ -1,0 +1,23 @@
+{
+  "mapping_name": "config_pg_prod_public_r_chargebacks",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "01/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "r_chargebacks",
+      "order_field": "id",
+      "sql": "SELECT id,inserted_at,published_at,payment_id,peu_id,type_raw,created_at,issuer_reason_code_raw,issuer_reason_description_raw,cc_identifier,cc_expiry_identifier,bin,cc_additional_data,processor,dispute_status_raw FROM public.r_chargebacks",
+      "load_method": "insert-only",
+      "key_field": "id"
+    }
+  ]
+}

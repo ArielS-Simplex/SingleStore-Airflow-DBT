@@ -1,0 +1,26 @@
+{
+  "mapping_name": "config_pg_prod_public_r_payments",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "02/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "r_payments",
+      "order_field": "inserted_at",
+      "sql": "SELECT id, simplex_payment_id, api_payment_uuid, partner_order_id, inserted_at, created_at FROM public.r_payments",
+      "load_method": "insert-only",
+      "sql_condition": "",
+      "volume": "high",
+      "key_field": "id",
+      "tags": ["ms1"]
+    }
+  ]
+}

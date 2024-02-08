@@ -1,0 +1,238 @@
+schema_name: 'slack API - alert'
+table_name: 'query - many tables'
+source_conn_id: 'postgres_default'
+versions:
+  full:
+    filter: False
+    channel_id: 'C01V0CRAFN0'
+    channel_name: 'liquidity_provider_volume_change_alerts'
+    grid_color: '#3fcc67'
+  nevadaex-broker:
+    filter: True
+    channel_id: 'C06AB689TL6'
+    channel_name: 'nevada_volume_change'
+    grid_color: '#3fcc67'
+sql: >
+  WITH vol_pred AS (SELECT dow, hour, minutes, name, AVG(hour_ratio) pred_ratio
+                    FROM (SELECT day,
+                                 hour,
+                                 minutes,
+                                 dow,
+                                 total_amount_usd,
+                                 name,
+                                                                SUM(total_amount_usd) OVER (PARTITION BY day ORDER BY hour
+                                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) total_until_hour,
+                                 SUM(total_amount_usd) OVER (PARTITION BY day)         total_per_day,
+                                 SUM(total_amount_usd) OVER (PARTITION BY day ORDER BY hour
+                                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) /
+                                 SUM(total_amount_usd) OVER (PARTITION BY day)         hour_ratio
+                          FROM (SELECT TO_CHAR(p.handling_at, 'DD/MM/YY') AS day,
+                                       TO_CHAR(p.handling_at, 'HH24')     AS hour,
+                                       CASE
+                                           WHEN TO_CHAR(p.handling_at, 'MI') :: real < 15 THEN '00'
+                                           WHEN TO_CHAR(p.handling_at, 'MI') :: real < 30 THEN '15'
+                                           WHEN TO_CHAR(p.handling_at, 'MI') :: real < 45 THEN '30'
+                                           ELSE '45' END                  AS minutes,
+                                       EXTRACT(ISODOW FROM p.handling_at) AS dow,
+                                       pr.name,
+                                       SUM(total_amount_usd)                 total_amount_usd
+                                FROM payments p
+                                         LEFT JOIN partners pr ON p.pay_to_partner_id = pr.id
+                                WHERE status = 2
+                                  AND pr.service_type = 'broker'
+                                  AND p.handling_at BETWEEN CURRENT_DATE - 92 AND CURRENT_DATE - 2
+                                GROUP BY 1, 2, 3, 4, 5) a
+                          GROUP BY 1, 2, 3, 4, 5, 6) aa
+                    GROUP BY 1, 2, 3, 4),
+       daily_cap AS (SELECT pr.name,
+                            CASE
+                                WHEN config ->> 'activated' = 'true'
+                                    THEN (config -> 'capping' ->> 'daily_total_usd_amount') :: REAL
+                                ELSE 0 END daily_cap_usd
+                     FROM partners pr
+                     WHERE pr.service_type = 'broker'
+       ),
+       current_volume as (select pr.name,
+                                 to_char(max(p.handling_at), 'HH24') as  current_hour,
+                                 case
+                                   when to_char(max(p.handling_at), 'MI') :: real < 15 then '00'
+                                   when to_char(max(p.handling_at), 'MI') :: real < 30 then '15'
+                                   when to_char(max(p.handling_at), 'MI') :: real < 45 then '30'
+                                   else '45' end                    as  current_minutes,
+                                 extract(isodow from max(p.handling_at)) current_dow,
+                                 sum(total_amount_usd)                  volume_today
+                          from payments p
+                                 left join partners pr on p.pay_to_partner_id = pr.id
+                          where status = 2
+                            and pr.service_type = 'broker'
+                            --and pr.id != 38 --bitstamp
+                            and p.handling_at > CURRENT_DATE::TIMESTAMP AT TIME ZONE 'utc'
+                          group by 1),
+
+       current_volume_app AS (SELECT pr.name,
+                                  SUM(total_amount_usd)                   volume_today_app
+                           FROM payments p
+                                   left JOIN quotes q ON p.quote_id = q.quote_id
+                                   left JOIN partners pr ON q.broker_id = pr.id
+                          WHERE status = 2
+                            AND pr.service_type = 'broker'
+                            AND p.updated_at > CURRENT_DATE::TIMESTAMP AT TIME ZONE 'utc'
+                          GROUP BY 1),
+
+       lp_summary_table AS (
+           SELECT a.name                        AS                liquidity_provider,
+                  volume_today,
+                  cva.volume_today_app,
+                  1 / pred_ratio * volume_today AS                pred_eod_volume,
+                  daily_cap_usd,
+                  (daily_cap_usd - 1 / pred_ratio * volume_today) pred_amount_left,
+                  CASE
+                      WHEN daily_cap_usd = 0 THEN 0
+                      ELSE ROUND((100 * (daily_cap_usd - 1 / pred_ratio * volume_today) / daily_cap_usd)::NUMERIC,
+                                 2) END         AS                pred_amount_left_percent
+           FROM current_volume a
+                    LEFT JOIN vol_pred b
+                              ON a.current_hour = b.hour AND a.current_dow = b.dow AND a.name = b.name AND
+                                 a.current_minutes = b.minutes
+                    LEFT JOIN daily_cap dc ON a.name = dc.name
+                    LEFT JOIN current_volume_app cva ON a.name = cva.name
+           UNION
+           SELECT 'Total'                            AS                name,
+                  SUM(volume_today),
+                  sum(cva.volume_today_app),
+                  SUM(1 / pred_ratio * volume_today) AS                pred_eod_volume,
+                  SUM(daily_cap_usd)                                   daily_cap_usd,
+                  SUM((daily_cap_usd - 1 / pred_ratio * volume_today)) pred_amount_left,
+                  CASE
+                      WHEN SUM(daily_cap_usd) = 0 THEN 0
+                      ELSE ROUND((100 * SUM(daily_cap_usd - 1 / pred_ratio * volume_today) / SUM(daily_cap_usd))::NUMERIC,
+                                 2) END              AS                pred_amount_left_percent
+           FROM current_volume a
+                    LEFT JOIN vol_pred b
+                              ON a.current_hour = b.hour AND a.current_dow = b.dow AND a.name = b.name AND
+                                 a.current_minutes = b.minutes
+                    LEFT JOIN daily_cap dc ON a.name = dc.name
+                    LEFT JOIN current_volume_app cva ON a.name = cva.name
+           GROUP BY 1),
+       ---<<<<--------
+       -- In the next part we will extract from business params the latest selfie approval rates per LP:
+       params_latest AS (
+           SELECT DISTINCT ON (name) json_value
+           FROM business_params.constants
+           WHERE name = 'BROKERS_CONVERSION_RATES_FOR_DAILY_TOTAL_STAT'
+           ORDER BY name, inserted_at DESC),
+       paybis_rates AS (
+           SELECT 'paybis-broker'                                        AS liquidity_provider,
+                  (json_value #>> '{paybis-broker,poid}')::FLOAT         AS kyc_approval_rate,
+                  (json_value #>> '{paybis-broker,photo_selfie}')::FLOAT AS photo_selfie_rate,
+                  (json_value #>> '{paybis-broker,video_selfie}')::FLOAT AS video_selfie_rate
+           FROM params_latest),
+       paybisus_rates AS (
+           SELECT 'paybisus-broker'                                        AS liquidity_provider,
+                  (json_value #>> '{paybisus-broker,poid}')::FLOAT         AS kyc_approval_rate,
+                  (json_value #>> '{paybisus-broker,photo_selfie}')::FLOAT AS photo_selfie_rate,
+                  (json_value #>> '{paybisus-broker,video_selfie}')::FLOAT AS video_selfie_rate
+           FROM params_latest),
+       elastum_rates AS (
+           SELECT 'elastum-broker'                                        AS liquidity_provider,
+                  (json_value #>> '{elastum-broker,poid}')::FLOAT         AS kyc_approval_rate,
+                  (json_value #>> '{elastum-broker,photo_selfie}')::FLOAT AS photo_selfie_rate,
+                  (json_value #>> '{elastum-broker,video_selfie}')::FLOAT AS video_selfie_rate
+           FROM params_latest),
+       hfinance_rates AS (
+           SELECT 'hfinance-broker'                                        AS liquidity_provider,
+                  (json_value #>> '{hfinance-broker,poid}')::FLOAT         AS kyc_approval_rate,
+                  (json_value #>> '{hfinance-broker,photo_selfie}')::FLOAT AS photo_selfie_rate,
+                  (json_value #>> '{hfinance-broker,video_selfie}')::FLOAT AS video_selfie_rate
+           FROM params_latest),
+       elastumou_rates AS (
+           SELECT 'elastumou-broker'                                        AS liquidity_provider,
+                  (json_value #>> '{elastumou-broker,poid}')::FLOAT         AS kyc_approval_rate,
+                  (json_value #>> '{elastumou-broker,photo_selfie}')::FLOAT AS photo_selfie_rate,
+                  (json_value #>> '{elastumou-broker,video_selfie}')::FLOAT AS video_selfie_rate
+           FROM params_latest),
+           nevadaex_rates AS (
+           SELECT 'nevadaex-broker'                                        AS liquidity_provider,
+                  (json_value #>> '{nevadaex-broker,poid}')::FLOAT         AS kyc_approval_rate,
+                  (json_value #>> '{nevadaex-broker,photo_selfie}')::FLOAT AS photo_selfie_rate,
+                  (json_value #>> '{nevadaex-broker,video_selfie}')::FLOAT AS video_selfie_rate
+           FROM params_latest),
+       verification_rates AS (
+           SELECT *
+           FROM paybis_rates
+           UNION
+           SELECT *
+           FROM paybisus_rates
+           UNION
+           SELECT *
+           FROM elastum_rates
+           UNION
+           SELECT *
+           FROM hfinance_rates
+           UNION
+           SELECT *
+           FROM elastumou_rates
+           union
+           select *
+           from nevadaex_rates),
+  --->>------>>
+  ---------In the next part we will extract the payments that are in status 1 or 25 from the past 24 hours.
+       ----We will join the approval rates we got in the previous part for each payment by its LP:
+       live_payments AS (
+           SELECT DISTINCT ON (p.id) p.id    AS payment_id,
+                                     p.total_amount_usd,
+                                     pa.name AS liquidity_provider
+           FROM payments p
+                    JOIN quotes q ON p.quote_id = q.quote_id
+                    JOIN partners pa ON q.broker_id = pa.id
+           WHERE (p.status IN (1, 25) AND p.updated_at > NOW() - INTERVAL '24 hours')
+  --          and pa.name like '%paybis%'
+           ORDER BY p.id, q.created_at DESC
+       )
+     ,  agger_live_data AS (
+           SELECT DISTINCT ON (lpa.payment_id) lpa.payment_id,
+                                               v.verification_type,
+                                               lpa.total_amount_usd,
+                                               vr.*
+           FROM live_payments lpa
+                    LEFT JOIN verifications v ON v.initial_payment_id = lpa.payment_id
+                    JOIN verification_rates vr ON lpa.liquidity_provider = vr.liquidity_provider
+           ORDER BY lpa.payment_id, v.inserted_at DESC
+       ),
+       soon_approved_vol AS (
+           SELECT liquidity_provider,
+                  SUM(
+                          CASE
+                              WHEN verification_type in ( 'kyc_identity','kyc_liveness_identity') THEN total_amount_usd * kyc_approval_rate
+                              WHEN verification_type = 'video_selfie' THEN total_amount_usd * video_selfie_rate
+                              WHEN verification_type = 'photo_selfie' THEN total_amount_usd * photo_selfie_rate
+                              ELSE total_amount_usd
+                              END
+                      ) soon_approved_volume_today
+           FROM agger_live_data ald
+           GROUP BY 1
+           UNION
+           SELECT 'Total' AS liquidity_provider,
+                  SUM(
+                          CASE
+                              WHEN verification_type in ( 'kyc_identity','kyc_liveness_identity') THEN total_amount_usd * kyc_approval_rate
+                              WHEN verification_type = 'video_selfie' THEN total_amount_usd * video_selfie_rate
+                              WHEN verification_type = 'photo_selfie' THEN total_amount_usd * photo_selfie_rate
+                              ELSE total_amount_usd
+                              END
+                      )      soon_approved_volume_today
+           FROM agger_live_data ald
+           ORDER BY 2 DESC)
+  SELECT lst.liquidity_provider as LP,
+         lst.volume_today as vol_today,
+         lst.volume_today_app +  coalesce(sav.soon_approved_volume_today,0) AS app_and_soon_app_vol ,
+         coalesce(sav.soon_approved_volume_today,0) as soon_app_vol,
+         lst.pred_eod_volume as pred_eod_vol,
+         lst.daily_cap_usd as daily_cap,
+         lst.pred_amount_left as pred_left,
+         lst.pred_amount_left_percent as pred_left_percent
+    FROM lp_summary_table lst
+             LEFT JOIN soon_approved_vol sav ON lst.liquidity_provider = sav.liquidity_provider
+    order by 2 desc
+  ;
+

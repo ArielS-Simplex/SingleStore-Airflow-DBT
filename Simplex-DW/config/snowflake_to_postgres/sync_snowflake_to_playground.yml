@@ -1,0 +1,61 @@
+offers_flatten:
+  prod:
+    source_table: 'data_model.offers_flatten'
+    staging_table: 'bi_staging.snow_offers_flatten'
+    target_table: 'bi.snow_offers_flatten'
+    date_field: 'time'
+    upsert: insert into bi.snow_offers_flatten (id, time, event_name, source, session_id, transaction_id, tp_id,
+                                                tp_transaction_id, available_offers, presented_offers, selected_offer,
+                                                available_payment_methods,
+                                      presented_payment_methods, score, merchant_id, available_offers_id,
+                                      presented_offers_id, selected_offers_id ,auto_selection)
+      (select id, time, event_name, source, session_id, transaction_id, tp_id, tp_transaction_id,
+                                      available_offers, presented_offers, selected_offer, available_payment_methods,
+                                      presented_payment_methods, score, merchant_id, available_offers_id,
+                                      presented_offers_id, selected_offers_id ,auto_selection
+       from bi_staging.snow_offers_flatten)
+       ON CONFLICT ON CONSTRAINT snow_offers_flatten_pkey DO update
+      set presented_payment_methods = excluded.presented_payment_methods,
+          score = excluded.score,
+          merchant_id = excluded.merchant_id
+          where bi.snow_offers_flatten.event_name='PRESENTED_OFFERS'
+  local:
+    source_table: 'data_model.offers_flatten'
+    staging_table: 'bi_staging.test_snow_offers_flatten_stage'
+    target_table:  'bi_staging.test_snow_offers_flatten_target'
+    date_field: 'time'
+    upsert: insert into bi_staging.snow_offers_flatten_2_target (id, time, event_name, source, session_id, transaction_id, tp_id,
+      tp_transaction_id, available_offers, presented_offers, selected_offer,
+      available_payment_methods,
+      presented_payment_methods, score, merchant_id, available_offers_id,
+      presented_offers_id, selected_offers_id)
+      (select id, time, event_name, source, session_id, transaction_id, tp_id, tp_transaction_id,
+      available_offers, presented_offers, selected_offer, available_payment_methods,
+      presented_payment_methods, score, merchant_id, available_offers_id,
+      presented_offers_id, selected_offers_id
+      from bi_staging.snow_offers_flatten_2_stage)
+      ON CONFLICT ON CONSTRAINT snow_offers_flatten_pkey DO update
+      set presented_payment_methods = excluded.presented_payment_methods,
+      score = excluded.score,
+      merchant_id = excluded.merchant_id
+      where bi_staging.snow_offers_flatten_2_target.event_name='PRESENTED_OFFERS'
+  stage:
+    source_table: 'data_model.offers_flatten'
+    staging_table: 'bi_staging.test_snow_offers_flatten_stage'
+    target_table:  'bi_staging.test_snow_offers_flatten_target'
+    date_field: 'time'
+    upsert: insert into bi_staging.snow_offers_flatten_2_target (id, time, event_name, source, session_id, transaction_id, tp_id,
+      tp_transaction_id, available_offers, presented_offers, selected_offer,
+      available_payment_methods,
+      presented_payment_methods, score, merchant_id, available_offers_id,
+      presented_offers_id, selected_offers_id)
+      (select id, time, event_name, source, session_id, transaction_id, tp_id, tp_transaction_id,
+      available_offers, presented_offers, selected_offer, available_payment_methods,
+      presented_payment_methods, score, merchant_id, available_offers_id,
+      presented_offers_id, selected_offers_id
+      from bi_staging.snow_offers_flatten_2_stage)
+      ON CONFLICT ON CONSTRAINT snow_offers_flatten_pkey DO update
+      set presented_payment_methods = excluded.presented_payment_methods,
+      score = excluded.score,
+      merchant_id = excluded.merchant_id
+      where bi_staging.snow_offers_flatten_2_target.event_name='PRESENTED_OFFERS'

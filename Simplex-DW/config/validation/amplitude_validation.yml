@@ -1,0 +1,17 @@
+config:
+  schema_name: '_DBT_AMPLITUDE_EVENTS'
+  table_name: 'amplitude_validation'
+  source_conn_id: 'snowflake_conn'
+tables:
+  transaction_approved:
+    db_and_schema_source: 'DE_PRD._DBT_AMPLITUDE_EVENTS'
+    db_and_schema_target: 'simplex_raw.public'
+    source_table: 'AMP_EVENT__TRANSACTION_APPROVED'
+    target_table: 'PAYMENT_EVENTS_LOG'
+    where_source: >
+      WHERE EVENT_PROPERTIES:timestamp::TIMESTAMPNTZ >= current_date-1
+       AND  EVENT_PROPERTIES:timestamp::TIMESTAMPNTZ <  date_trunc('hour', current_timestamp) - interval '60 minute'
+    where_target: >
+      WHERE CREATED_AT >= current_date-1
+        AND CREATED_AT <  date_trunc('hour', current_timestamp) - interval '60 minute'
+        AND NAME='payment_simplexcc_approved'

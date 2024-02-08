@@ -1,0 +1,9 @@
+  transform_id : 'competitors_bot'
+  schedule_interval : "0 * * * *"
+  models:
+  - id: "competitors"
+    select: "@models/competitors/competitor_quotes.sql"
+    test: "true"
+  schema_name: 'data_model'
+  table_name: 'competitor_quotes'
+  source_conn_id: 'snowflake_conn'

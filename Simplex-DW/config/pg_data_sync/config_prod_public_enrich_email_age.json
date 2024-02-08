@@ -1,0 +1,26 @@
+{
+  "mapping_name": "config_pg_prod_public_enrich_email_age",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 200000,
+  "batch_min_rows": 10,
+  "schedule": "08/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "enrich_email_age",
+      "order_field": "id",
+      "sql": "SELECT  id, email, inserted_at, (data - ARRAY ['email','eName','title','ip_city','ipaddress'] #- '{query,email}' #- '{query,results,0,email}'#- '{query,results,0,eName}'#- '{query,results,0,title}'#- '{query,results,0,ipaddress}' #- '{query,results,0,location}' ) AS data, data->'email' AS data_email,(request_data - ARRAY ['ip','query','email','phone','billcity','lastname','firstname','billpostal','billaddress','cardFirstSix']) AS request_data, request_data->>'email' AS request_data_email, etl.f_mask_text(request_data->>'phone') AS request_data_phone, version FROM public.enrich_email_age",
+      "load_method": "insert-only",
+      "columns_to_hash":"email,data_email,request_data_email",
+      "key_field": "id",
+      "tags": ["ms1"]
+
+    }
+  ]
+}

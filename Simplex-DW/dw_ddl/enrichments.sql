@@ -1,0 +1,31 @@
+CREATE TABLE enrichments.binbase_new(bin string,
+card_brand string,
+issuing_organization string,
+card_type string,
+card_category string,
+issuing_country_iso string,
+issuing_country_iso_a2 string,
+issuing_country_iso_a3 string,
+issuing_country_iso_number int,
+issuing_organization_website string,
+issuing_organization_phone_number string,
+ver int,
+id int, dw_created_at timestamp_ntz not null default CURRENT_TIMESTAMP(0)::TIMESTAMP_NTZ);
+
+CREATE TABLE enrichments.enrich_maxmind_cache(id int,
+inserted_at TIMESTAMP_NTZ,
+request_hash string,
+request_data variant,
+response_data variant,
+maxmind_api_version int, dw_created_at timestamp_ntz not null default CURRENT_TIMESTAMP(0)::TIMESTAMP_NTZ);
+
+CREATE TABLE enrichments.binbase_ip_enrichments(begin_ip_range string,
+end_ip_range string,
+begin_range_num number(20,4),
+end_range_num number(20,4),
+country_iso_2 string,
+country_iso_3 string,
+country_iso_num number(20,4),
+country_name_iso string,
+ver int,
+ip_range int, dw_created_at timestamp_ntz not null default CURRENT_TIMESTAMP(0)::TIMESTAMP_NTZ);

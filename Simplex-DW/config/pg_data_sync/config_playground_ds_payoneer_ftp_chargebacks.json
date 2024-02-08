@@ -1,0 +1,22 @@
+{
+  "mapping_name": "config_pg_playground_ds_payoneer_ftp_chargebacks",
+  "source_conn_id": "postgres_playground",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "playground-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PLAYGROUND_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 150000,
+  "batch_min_rows": 10,
+  "file_format": "public.CSV_DQ_NAN",
+  "schedule": "06/12 * * * *",
+  "rules": [
+
+    {
+      "schema_name": "ds",
+      "table_name": "payoneer_ftp_chargebacks",
+      "sql": "SELECT partner_order_id FROM ds.payoneer_ftp_chargebacks",
+      "load_method": "truncate-insert"
+    }
+  ]
+}

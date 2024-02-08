@@ -1,0 +1,28 @@
+{
+  "mapping_name": "config_pg_prod_credit_cards_payment_instruments",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "05/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "credit_cards",
+      "table_name": "payment_instruments",
+      "order_field": "created_at",
+      "sql": "SELECT id, state, country, email, etl.f_mask_text(phone) as phone, type, created_at, (data->'cardNetwork') AS card_network FROM credit_cards.payment_instruments",
+      "load_method": "insert-only",
+      "columns_to_hash":"email",
+      "sql_condition": "",
+      "volume": "high",
+      "key_field": "id",
+      "tags": ["ms1"]
+
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+glue/args.json
+.idea
+venv
+***/.DS_Store
+plugins/plugins.zip
+db-data
+__pycache__/
+*.py[cod]
+/dags/test_*.py
+docker/variables.json
+docker/script/connections.sh

@@ -1,0 +1,29 @@
+{
+  "mapping_name": "config_pg_prod_public_proc_requests",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 100000,
+  "batch_min_rows": 10,
+  "schedule": "01/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "proc_requests",
+      "order_field": "updated_at",
+      "sql": "SELECT id, created_at, updated_at, payment_id, request_id,(raw_response - ARRAY['city','phone','street1','last_name','first_name','ip_address','customerIp','billingDetails', 'CVV','cardHolderName','address','lastName','firstName','last4Digits','ccCardNumber','paymentOption', 'ccExpYear','ccExpMonth'] #-'{profile,lastName}'#-'{profile,firstName}'#-'{customer,ip}'#-'{card_account,holder}'#-'{card_account,expiration}'#-'{card_account,masked_pan}'#-'{payment_data,id}') || jsonb_build_object('ip_address',etl.f_ip2country(raw_response ->> 'ip_address'), 'ip',etl.f_ip2country(raw_response -> 'customer'->> 'ip')) AS raw_response,raw_response->'profile'->>'email' AS raw_response_profile_email,raw_response->'customer'->>'email' AS raw_response_customer_email,tx_type, processor, status, random_charge_id,(request_data - ARRAY['city','customer','phone','zipcode','address1','address2','dateOfBirth','last_name_card','first_name_card','customerIp','billingDetails','paymentOption','deviceDetails','billing_address','client_ip','remote_ip','birth_date','card_holder','creditCardId','email','customer_email'] #-'{billingAddress,zip}'#-'{billingAddress,city}'#-'{billingAddress,address}'#-'{billingAddress,lastName}'#-'{billingAddress,firstName}' #-'{billingAddress,email}' #-'{profile,lastName}'#-'{profile,email}'#-'{profile,firstName}'#- '{POS-GWLink,AuthorisationRequest,Cardholder}' #-'{customer,ip}'#-'{customer,email}'#-'{return_urls,card_account,holder}'#-'{card_account,card}'#-'{payment_data,id}'#-'{card_account,billing_address,zip}'#-'{card_account,billing_address,city}'#-'{card_account,billing_address,addr_line_1}') || jsonb_build_object('birth_date', etl.f_mask_date(request_data->>'birth_date','DD/MM/YYYY'), 'phone',etl.f_mask_text(request_data ->> 'phone'), 'dateOfBirth',etl.f_mask_date(request_data ->> 'dateOfBirth'), 'customerIp',etl.f_ip2country(request_data ->> 'customerIp'), 'client_ip',etl.f_ip2country(request_data ->> 'client_ip'), 'remote_ip',etl.f_ip2country(request_data ->> 'remote_ip'), 'ip',etl.f_ip2country(request_data -> 'customer'->> 'ip')) AS request_data,request_data->'billingAddress'->>'email' AS request_data_billingaddress_email,request_data->>'email' AS request_data_email,request_data->>'customer_email' AS request_data_customer_email,request_data->'customer'->>'email' AS request_data__customer_email,request_data->'profile'->>'email' AS request_data_profile_email,(init_response_data #-'{customer,ip}'#-'{card_account,holder}' #-'{card_account,expiration}'#-'{card_account,masked_pan}'#-'{payment_data,id}'#-'{customer,email}') || jsonb_build_object('ip',etl.f_ip2country(init_response_data -> 'customer'->> 'ip')) AS init_response_data,init_response_data->'customer'->>'email' AS init_response_data_customer_email,notification_response_data, cc_identifier, cc_expiry_identifier, bin, mid, threeds, payment_method,payment_instrument_type, payment_model_id FROM public.proc_requests",
+      "sql_condition": "",
+      "volume": "high",
+      "load_method": "merge",
+      "key_field": "id",
+      "columns_to_hash":"request_data_billingaddress_email,raw_response_profile_email,raw_response_customer_email,request_data_email,request_data_customer_email,request_data__customer_email,init_response_data_customer_email,request_data_profile_email",
+      "tags": ["ms1"]
+
+    }
+  ]
+}
+

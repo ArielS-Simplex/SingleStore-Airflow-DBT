@@ -1,0 +1,3 @@
+schema_name: 'API - salesforce_insert'
+table_name: 'Chargeback__c'
+source_conn_id: 'postgres_playground'

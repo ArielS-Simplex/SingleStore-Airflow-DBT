@@ -1,0 +1,253 @@
+  transform_id : 'finance'
+  schedule_interval : "01/30 * * * *"
+  schema_name: 'data_model'
+  table_name: 'amplitude_events'
+  s3_data_prefix: "sftp_nuvei"
+  file_type: "csv"
+  channel_id: 'CBWS5KC8G'
+  channel_name: 'test c'
+  models:
+    #add here a task that is a test only that comes before everything
+  - id: "banks_partner10_"
+    query: >
+      select distinct processor As "Name",
+                      case
+                          when processor = 'ecp' then 3
+                          when processor = 'safecharge' then 8
+                          when PROCESSOR = 'worldline' then 7
+                          when PROCESSOR = 'paysafe' then 5
+                          end   AS "PartnerBankId",
+                      10        AS "PartnerId"
+      from PROC_REQUESTS
+      where CREATED_AT>='2021-01-01' and PROCESSOR!='unlimint';
+  - id: "Clients_partner10_"
+    query: > 
+      select 10  AS "PartnerId",
+       id        AS "PartnerClientId",
+       FULL_NAME AS "Name"
+      from PARTNERS;
+  - id: "FinancialData_partner10_"
+    query: >
+      with raw_payments as (select p.id                                                     as payment_id
+                                 , p.currency
+                                 , p.usd_rate::float                                        as usd_rate
+                                 , coalesce(p.bin, pr.raw_response:bin)                     as bin
+                                 , pr.processor                                             as processor_name
+                                 , case
+                                       when pr.processor = 'ecp' then 0.25
+                                       when pr.processor = 'safecharge' then 0.2
+                                       when pr.PROCESSOR = 'wordline' then 0.2
+                                       when pr.PROCESSOR = 'paysafe' then 0.2 end           as processing_fee
+                                 , peu.partner_id
+                                 , TO_CHAR(DATE_TRUNC('MONTH', p.created_at), 'YYYY-MM-DD') as Date
+                                 , case
+                                       when pr.processor = 'ecp' then 3
+                                       when pr.processor = 'safecharge' then 8
+                                       when pr.PROCESSOR = 'worldline' then 7
+                                       when pr.PROCESSOR = 'paysafe' then 5 end             as processor_id
+                                 , p.TOTAL_AMOUNT
+                                 , p.TOTAL_AMOUNT_USD
+                            from payments p
+                                     join proc_requests pr on p.id = pr.payment_id
+                                     join partner_end_users peu on p.partner_end_user_id = peu.id
+
+                            where true
+                              and p.created_at >= '2023-09-01'
+                              and p.created_at < '2023-10-01'
+                              and p.status in (2)
+                              and tx_type = 'capture-authorization'
+                              and pr.status = 'success'
+                              and pr.processor != 'safecharge')
+
+         , cb as (select SIMPLEX_ID__C,
+                         27      as labor_cost,
+                         case
+                             when DECISION__C in ('Accept', 'Lost', 'Withdraw', 'Rejected') then rp.TOTAL_AMOUNT_USD
+                             when DECISION__C in ('TBD', 'Representment', 'Continue') then rp.TOTAL_AMOUNT_USD::float * 0.27
+                             end as cb_costs_usd
+                  from SALESFORCE.CHARGEBACKS_LOG cl
+                           join raw_payments rp on rp.payment_id = cl.SIMPLEX_ID__C
+                  QUALIFY ROW_NUMBER() OVER (PARTITION BY SIMPLEX_ID__C
+                      ORDER BY CHARGEBACK_POSTING_DATE__C desc ) =
+                          1)
+
+         , fee_data as (select rp.payment_id,
+                               pf.AMOUNT::float / rp.usd_rate as fee_amount_usd
+                        from payment_fees pf
+                                 join raw_payments rp on rp.payment_id = pf.PAYMENT_ID
+                            and pf.fee_type in ('simplexFee', 'lpServiceFee')
+                        QUALIFY ROW_NUMBER() OVER (PARTITION BY pf.PAYMENT_ID
+                            , pf.fee_type ORDER BY pf.CREATED_AT desc ) =
+                                1)
+
+         , fee_agg as (select payment_id,
+                              sum(fee_amount_usd::float) as simplex_fee
+                       from fee_data
+                       group by payment_id)
+
+         , second_q as (select payment_id, TOTAL_SECOND_QUOTE_REVENUE_USD
+                        from SIMPLEX_RAW.public.second_quote_revenue
+                        where created_at >= '2023-09-01'
+                        QUALIFY ROW_NUMBER() OVER (PARTITION BY PAYMENT_ID
+                            ORDER BY CREATED_AT desc ) =
+                                1)
+
+         , partner_fee_fiat as (select TXN_ID, PARTNER_FEE_FIAT_USD, CREATED_AT
+                                from DE_PRD.DATA_MODEL.partner_fee
+                                where PARTNER_FEE_FIAT_FLAG is not null
+                                QUALIFY ROW_NUMBER() OVER (PARTITION BY TXN_ID
+                                    ORDER BY CREATED_AT desc ) =
+                                        1)
+         , bin_base as (select bin, card_brand, card_type, issuing_country_iso_a2 as bin_country
+                        from enrichments.binbase_new
+                        QUALIFY ROW_NUMBER() OVER (PARTITION BY bin ORDER BY ver desc) = 1)
+
+         , enrich_binlist_flat as (select bin,
+                                          response_data:brand::text  as card_brand_classifier,
+                                          response_data:scheme::text as card_scheme,
+                                          response_data:type::text   as card_type_binlist
+                                   from enrich_binlist
+                                   QUALIFY ROW_NUMBER() OVER (PARTITION BY bin ORDER BY inserted_at desc) = 1)
+
+         , payments_with_bin_data as (select rp.payment_id,
+                                             rp.date,
+                                             rp.processor_name,
+                                             bb.card_brand,
+                                             coalesce(bb.card_type, upper(eb.card_type_binlist)) as card_type,
+                                             bb.bin_country,
+                                             lower(eb.card_brand_classifier)                     as card_brand_classifier,
+                                             card_scheme
+                                      from raw_payments rp
+                                               join bin_base bb
+                                                    on rp.bin = bb.bin
+                                               left join enrich_binlist_flat eb on rp.bin = eb.bin)
+         , classify_region_card_type as (select payment_id,
+                                                date,
+                                                card_scheme,
+                                                card_type,
+                                                card_brand,
+                                                case
+                                                    when card_brand_classifier in ('prepaid platinum',
+                                                                                   'business',
+                                                                                   'platinum',
+                                                                                   'infinite',
+                                                                                   'world for business',
+                                                                                   'corporate/business prepaid',
+                                                                                   'visa corporate',
+                                                                                   'signature',
+                                                                                   'gold',
+                                                                                   'corporate',
+                                                                                   'mc comm/corp',
+                                                                                   'platinium',
+                                                                                   'commercial/business',
+                                                                                   'corporate world elite',
+                                                                                   'commercial/corp',
+                                                                                   'corporate immediate debit',
+                                                                                   'corporate world',
+                                                                                   'world embossed',
+                                                                                   'mc world emb') then 'CORPORATE'
+                                                    else card_type end       as card_type_updated,
+                                                card_brand_classifier,
+                                                bin_country,
+                                                case
+                                                    when
+                                                        bin_country in ('GB') then 'Domestic'
+                                                    when bin_country in
+                                                         ('BE', 'BG', 'CZ', 'DK', 'DE', 'EE', 'IE', 'GR', 'ES', 'FR', 'HR',
+                                                          'IT', 'CY', 'LV',
+                                                          'LT', 'LU', 'HU', 'MT', 'NL', 'AT', 'PL', 'PT', 'LU', 'HU', 'MT',
+                                                          'NL', 'AT', 'PL',
+                                                          'PT', 'RO', 'SI', 'SK', 'FI', 'SE', 'CH', 'NO') then 'EEA'
+                                                    else 'International' end as processing_cost_reigon,
+                                                processor_name
+                                         from payments_with_bin_data)
+
+         , proc_cost as (select r.payment_id
+                              , pcs.bb_card_brand
+                              , card_type_updated as final_card_type
+                              , card_scheme
+                              , bin_country
+                              , r.processing_cost_reigon
+                              , coalesce(pcs.PROCESSING_COST_SHARE
+              , 0.0205)                           as ProcessingCostShare
+                         from classify_region_card_type r
+                                  left join bi.processing_cost_share pcs on
+                                     pcs.bb_card_brand = r.card_brand
+                                 and pcs.processing_cost_reigon = r.processing_cost_reigon
+                                 and pcs.final_card_type = r.card_type_updated
+                                 and pcs.processor = r.processor_name::text
+                                 and (to_varchar(pcs.start_date, 'DD/MM/YYYY') < current_date() or
+                                      to_varchar(pcs.end_date, 'DD/MM/YYYY') >= current_date()))
+
+         , all_data as (select 10                                             as PartnerId
+                             , rp.payment_id
+                             , rp.partner_id                                  as ClientId
+                             , rp.Date
+                             , rp.processor_id                                as BankId
+                             , rp.CURRENCY
+                             , rp.USD_RATE
+                             , rp.TOTAL_AMOUNT                                as Volume
+                             , rp.TOTAL_AMOUNT_USD                            as VolumeUSD
+                             , fa.simplex_fee
+                             , coalesce(sq.TOTAL_SECOND_QUOTE_REVENUE_USD, 0) as TOTAL_SECOND_QUOTE_REVENUE_USD
+                             , rp.processing_fee
+                             , coalesce(parf.PARTNER_FEE_FIAT_USD, 0)         as PARTNER_FEE_FIAT_USD
+                             , pc.card_scheme
+                             , pc.processing_cost_reigon
+                             , pc.bb_card_brand                               as card_brand
+                             , pc.final_card_type                             as card_type
+                             , pc.bin_country
+                             , rp.bin
+                             , ProcessingCostShare                            as processing_cost_share
+                             , cb.cb_costs_usd
+                             , labor_cost
+                        from raw_payments rp
+                                 join fee_agg fa
+                                      on fa.payment_id = rp.payment_id
+                                 left join second_q sq on sq.payment_id = rp.payment_id
+                                 left join partner_fee_fiat parf
+                                           on parf.TXN_ID = rp.payment_id
+                                 join proc_cost pc on pc.payment_id = rp.payment_id
+                                 left join cb on rp.payment_id = cb.SIMPLEX_ID__C)
+
+         , fee_sum as (select PartnerId
+                            , payment_id
+                            , ClientId
+                            , Date
+                            , BankId
+                            , CURRENCY
+                            , USD_RATE
+                            , Volume                                      as Volume
+                            , VolumeUSD                                   as VolumeUSD
+                            , coalesce(cb_costs_usd, 0)                   as cb_costs_usd
+                            , coalesce(labor_cost, 0)                     as cb_labor_cost_usd
+                            , coalesce(cb_costs_usd, 0) * usd_rate::float as cb_costs
+                            , coalesce(labor_cost, 0) * usd_rate::float   as cb_labor_cost
+                            , simplex_fee::float + processing_fee::float + TOTAL_SECOND_QUOTE_REVENUE_USD::float +
+                              PARTNER_FEE_FIAT_USD::float
+                                                                          as revenue_usd
+                            , (simplex_fee::float + processing_fee::float + TOTAL_SECOND_QUOTE_REVENUE_USD::float +
+                               PARTNER_FEE_FIAT_USD::float) * usd_rate::float
+                                                                          as revenue
+                            , processing_cost_share * VolumeUSD           as processing_cost_usd
+                            , processing_cost_share * Volume              as processing_cost
+                       from all_data)
+
+      select ROW_NUMBER() OVER(ORDER BY PartnerId,ClientId,BankId,CURRENCY)                           AS "RecordId",
+             PartnerId                                                                                AS "PartnerId",
+             ClientId                                                                                 AS "ClientId",
+             date                                                                                     AS "Date",
+             BankId                                                                                   AS "BankId",
+             CURRENCY                                                                                 AS "Currency",
+             sum(Volume)                                                                              AS "Volume",
+             sum(VolumeUSD)                                                                           AS "VolumeUSD",
+             count(payment_id)                                                                        AS "RecordsCount",
+             sum(revenue)                                                                             AS "GrossProfit",
+             sum(revenue_usd)                                                                         AS "GrossProfitUSD",
+             sum(revenue) - sum(processing_cost) - sum(cb_costs) -
+             sum(cb_labor_cost)                                                                       AS "NetRevenue",
+             sum(revenue_usd) - sum(processing_cost_usd) - sum(cb_costs_usd) - sum(cb_labor_cost_usd) AS "NetRevenueUSD",
+             sum(revenue)                                                                             AS "ProcessingGrossProfit",
+             sum(revenue_usd)                                                                         AS "ProcessingGrossProfitUSD"
+      from fee_sum
+      group by 2,3,4,5,6;

@@ -1,0 +1,27 @@
+  transform_id : 'sell_side_events'
+  schedule_interval : "17/30 * * * *"
+  schema_name: 'sell_side'
+  table_name: 'sell_side'
+  source_conn_id: 'snowflake_conn'
+  models:
+    #add here a task that is a test only that comes before everything
+  - id: "kyc_inquiries"
+    select: "@models/sell_side/kyc_inquiries.sql"
+    test: False
+  - id: "crypto_transfers"
+    select: "@models/sell_side/crypto_transfers.sql"
+    test: False
+  - id: "payment_instruments"
+    select: "@models/sell_side//payment_instruments.sql"
+    test: False
+  - id: "transactions"
+    select: "@models/sell_side/transactions.sql"
+    test: False
+  - id: "fiat_payouts"
+    select: "@models/sell_side/fiat_payouts.sql"
+    test: False
+  - id: "crypto_liquidations"
+    select: "@models/sell_side/crypto_liquidations.sql"
+    test: False
+
+

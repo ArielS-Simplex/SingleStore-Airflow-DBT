@@ -1,0 +1,25 @@
+{
+  "mapping_name": "config_pg_prod_public_enrich_maxmind",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 100000,
+  "batch_min_rows": 10,
+  "schedule": "08/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "enrich_maxmind",
+      "order_field": "id",
+      "sql": "SELECT id,inserted_at,CASE WHEN VERSION = 1 THEN (data - 'ip_asnum' - 'ip_latitude' - 'ip_longitude' - 'ip_postalCode')WHEN VERSION = 2 THEN (data #- '{ip_address,city,names}' #- '{ip_address,traits,ip_address}' #- '{ip_address,location,network}' #- '{ip_address,traits,network}' #- '{ip_address,location,latitude}'#- '{ip_address,location,longitude}' #- '{ip_address,postal,code}' #- '{billing_address,latitude}' #- '{billing_address,longitude}' #- '{billing_address,distance_to_ip_location}' #- '{credit_card,issuer,phone_number}') || jsonb_build_object('traits_ip_address', etl.f_ip2country(data -> 'ip_address' -> 'traits' ->>'ip_address')) END AS data,CASE WHEN VERSION = 1 THEN ((request_data - ARRAY['i', 'city', 'shipCity', 'postal', 'emailMD5', 'custPhone', 'shipPostal','shipAddr']) || jsonb_build_object('custPhone', etl.f_mask_text(request_data ->>'custPhone'), 'i', etl.f_ip2country(request_data ->> 'i')))WHEN VERSION = 2 THEN (request_data #- '{billing,city}'#- '{billing,postal}'#- '{billing,address}'#- '{billing,address_2}'#- '{billing,last_name}'#- '{billing,first_name}'#- '{billing,phone_number}') #- '{device,ip_address}' || jsonb_build_object('phone_number',etl.f_mask_text(request_data->'billing'->>'phone_number'), 'ip_address', etl.f_ip2country(request_data ->'device' ->> 'ip_address')) END AS request_data,context, hash_key, version, device_id FROM PUBLIC.enrich_maxmind",
+      "load_method": "insert-only",
+      "key_field": "id",
+      "tags": ["ms1"]
+
+    }
+  ]
+}

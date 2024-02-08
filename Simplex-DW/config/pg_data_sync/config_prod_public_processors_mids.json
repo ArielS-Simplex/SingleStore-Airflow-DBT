@@ -1,0 +1,24 @@
+{
+  "mapping_name": "config_pg_prod_public_processors_mids",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "5 */12 * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+
+    {
+      "schema_name": "public",
+      "table_name": "processors_mids",
+      "sql": "SELECT id, processor_mid_id, descriptor, display_name, config - 'terminal_tokens' AS config, processor_name, fee, partner_name, is_default, is_active FROM public.processors_mids",
+      "load_method": "merge",
+      "key_field": "id",
+      "tags": ["ms1"]
+    }
+  ]
+}

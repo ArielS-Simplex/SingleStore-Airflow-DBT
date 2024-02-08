@@ -1,0 +1,169 @@
+config:
+  schema_name: 'API - salesforce_update'
+  table_name: 'Chargeback__c'
+  source_conn_id: 'postgres_playground'
+query: >
+  with max_fw as (select cb.payment_id
+                        ,max (inserted_at) AS max_inserted_at
+                  from public_replica.fraud_warnings AS cb
+                  where inserted_at>= (current_date-180)
+                  group by 1),
+  distinct_cb as (select distinct payment_id
+                  from chargebacks as cb
+                  WHERE cb.posted_at >= (current_date-100) AND cb.status = '1st_chargeback')
+
+  select  cb.payment_id AS "Simplex_ID__c" ,
+         frt.tag        AS "Fraud_Ring__c",
+         case when fw.payment_id is not null then 'Yes' else 'No' END AS "Has_FW__c"
+  from distinct_cb AS cb
+  LEFT JOIN arnd.mv_fraud_ring_tags AS frt ON cb.payment_id = frt.payment_id
+  LEFT JOIN max_fw as fw on fw.payment_id=cb.payment_id ;
+
+
+
+  --FW Upload to SF 2023--09-18
+
+  with max_fw as (select cb.payment_id
+                        ,max (inserted_at) AS max_inserted_at
+                  from public_replica.fraud_warnings AS cb
+                  where inserted_at>= (current_date-180)
+                  group by 1),
+  distinct_cb as (select distinct payment_id
+                  from chargebacks as cb
+                  WHERE cb.posted_at >= (current_date-100) AND cb.status = '1st_chargeback'),
+  fraud_types as (
+           select distinct pr.payment_id,
+          case
+             when pr.processor = 'ecp' and fraud_type_code = '0' then '0'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Lost Fraud' then '0'
+             when pr.processor = 'ecp' and fraud_type_code = '1' then '1'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Stolen Fraud' then '1'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Never Received Issue' then '2'
+             when pr.processor = 'ecp' and fraud_type_code = '3' then '3'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Fraudulent Application' then '3'
+             when pr.processor = 'ecp' and fraud_type_code = '4' then '4'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Counterfeit Card Fraud' then '4'
+  -------------------------------------------------------------------------------------------------
+             when pr.processor = 'ecp' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '7%' and fraud_type_code = '5' then 'V5'
+
+              when pr.processor = 'ecp' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '2%' and fraud_type_code = '5' then 'V5'
+
+             when pr.processor = 'ecp' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '8%' and fraud_type_code = '5' then 'M5'
+
+              when pr.processor = 'ecp' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '0%' and fraud_type_code = '5' then 'M5'
+
+             when pr.processor = 'safecharge' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '7%' and fw.raw_data #>> '{fraudType}' = 'Other' then 'V5'
+
+              when pr.processor = 'safecharge' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '2%' and fw.raw_data #>> '{fraudType}' = 'Other' then 'V5'
+
+             when pr.processor = 'safecharge' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '8%' and fw.raw_data #>> '{fraudType}' = 'Account Takeover Fraud' then 'M5'
+
+              when pr.processor = 'safecharge' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '0%' and fw.raw_data #>> '{fraudType}' = 'Account Takeover Fraud' then 'M5'
+  -------------------------------------------------------------------------------------------------
+             when pr.processor = 'ecp' and fraud_type_code = '6' then '6'
+             when pr.processor = 'ecp' and fraud_type_code = 'NaN' then 'D'
+             --when pr.processor = 'paysafe' and fraud_type_code = '6' then '6'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Card Not Present Fraud' then '6'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Processing Error' then 'A'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Account Takeover Fraud' then 'B'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Unknown' then 'Unknown'
+              --when fw.raw_data #>> '{fraudType}' = 'null' AND fraud_type_code = 'null' then ''
+             else 'null'
+                 end as fraud_type
+          from proc_requests pr
+          left join payments p on p.id = pr.payment_id
+          left join fraud_warnings fw on fw.payment_id = pr.payment_id
+          left join chargebacks as cb on pr.payment_id = cb.payment_id
+          where pr.tx_type = 'authorization' and pr.status='success'
+          and cb.inserted_at > current_date - 100
+  ),
+  fraud_descriptions as (
+           select distinct pr.payment_id,
+          case
+             when pr.processor = 'ecp' and fraud_type_code = '0' then 'Card reported lost'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Lost Fraud' then 'Card reported lost'
+             when pr.processor = 'ecp' and fraud_type_code = '1' then 'Stolen'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Stolen Fraud' then 'Stolen'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Never Received Issue' then 'Never Received Issue'
+             when pr.processor = 'ecp' and fraud_type_code = '3' then 'Fraudulent application'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Fraudulent Application' then 'Fraudulent application'
+             when pr.processor = 'ecp' and fraud_type_code = '4' then 'Counterfeit card fraud'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Counterfeit Card Fraud' then 'Counterfeit card fraud'
+  -------------------------------------------------------------------------------------------------
+             when pr.processor = 'ecp' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '7%' and fraud_type_code = '5' then 'Miscellaneous'
+
+              when pr.processor = 'ecp' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '2%' and fraud_type_code = '5' then 'Miscellaneous'
+
+             when pr.processor = 'ecp' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '8%' and fraud_type_code = '5' then 'Account takeover fraud'
+
+              when pr.processor = 'ecp' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '0%' and fraud_type_code = '5' then 'Account takeover fraud'
+
+             when pr.processor = 'safecharge' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '7%' and fw.raw_data #>> '{fraudType}' = 'Other' then 'Miscellaneous'
+
+              when pr.processor = 'safecharge' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '2%' and fw.raw_data #>> '{fraudType}' = 'Other' then 'Miscellaneous'
+
+             when pr.processor = 'safecharge' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '8%' and fw.raw_data #>> '{fraudType}' = 'Account Takeover Fraud' then 'Account takeover fraud'
+
+              when pr.processor = 'safecharge' and coalesce((cb.raw_data #>> '{arn}'), (cb.raw_data #>> '{ARN}'),
+             (cb.raw_data #>> '{Acquirer ref number}'),
+             (cb.raw_data #>> '{Acquirer Ref Number}'))  like '0%' and fw.raw_data #>> '{fraudType}' = 'Account Takeover Fraud' then 'Account takeover fraud'
+  -------------------------------------------------------------------------------------------------
+             when pr.processor = 'ecp' and fraud_type_code = '6' then 'Card not present fraud'
+             when pr.processor = 'ecp' and fraud_type_code = 'NaN' then 'Manipulation of Account Holder'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Card Not Present Fraud' then 'Card not present fraud'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Processing Error' then 'Incorrect Processing'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Account Takeover Fraud' then 'Account takeover fraud'
+             when pr.processor = 'safecharge' and fw.raw_data #>> '{fraudType}' = 'Unknown' then 'Unknown'
+             --else ''
+                 end as fraud_description
+          from proc_requests pr
+          left join payments p on p.id = pr.payment_id
+          left join fraud_warnings fw on fw.payment_id = pr.payment_id
+          left join chargebacks as cb on pr.payment_id = cb.payment_id
+          where pr.tx_type = 'authorization' and pr.status='success'
+          and cb.inserted_at > current_date - 100
+  )
+
+  select  cb.payment_id        AS "Simplex_ID__c" ,
+          case when frt.tag = 'Ticket - Mass closing 3rd party fraud queue with auto URS' then ''
+          else frt.tag         END AS "Fraud_Ring__c",
+         case when fraud_type = 'null' then 'Unknown'
+            else fraud_type end    AS Fraud_Type_code__c,
+         fraud_description     AS "Fraud_Type_Description__c",
+         case when fw.payment_id is not null then 'Yes' else 'No' END AS "Has_FW__c"
+  from distinct_cb AS cb
+  LEFT JOIN arnd.mv_fraud_ring_tags AS frt ON cb.payment_id = frt.payment_id
+  LEFT JOIN max_fw as fw on fw.payment_id=cb.payment_id
+  LEFT JOIN fraud_types on fraud_types.payment_id = cb.payment_id
+  LEFT JOIN fraud_descriptions on fraud_descriptions.payment_id = cb.payment_id;
+

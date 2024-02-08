@@ -1,0 +1,25 @@
+{
+  "mapping_name": "config_pg_playground_bas_ib_registration",
+  "source_conn_id": "postgres_playground",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "playground-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PLAYGROUND_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "file_format": "public.CSV_DQ_NAN",
+  "schedule": "01/29 * * * *",
+  "rules": [
+    {
+      "schema_name": "bas",
+      "table_name": "ib_registration",
+      "order_field": "lastsrequest_requesttime",
+      "sql": "SELECT id, class,(data -'phoneNumber' -'personSurname'-'personGivenName'-'residenceAddress' -'email'#- '{simplexPrefillPayload,name}' #- '{simplexPrefillPayload,surname}'#- '{simplexPrefillPayload,dateOfBirth}' #- '{simplexPrefillPayload,phoneNumber}' #- '{simplexPrefillPayload,city}'#- '{simplexPrefillPayload,street}' #- '{simplexPrefillPayload,postcode}'#- '{simplexPrefillPayload,email}' #- '{lastSignupRequest,browserIpAddress}'#- '{lastSignupRequest,browserUserAgents}' #-'{initiationRequest,browserIpAddress}' #-'{initiationRequest,browserUserAgents}' #- '{smsConfirmRequest,browserIpAddress}'#- '{smsConfirmRequest,browserUserAgents}' #- '{emailConfirmRequest,browserIpAddress}' #- '{emailConfirmRequest,browserUserAgents}' #- '{simplexPrefillRequest,browserIpAddress}'#- '{simplexPrefillRequest,browserUserAgents}' #- '{termsAndConditionsRequest,browserIpAddress}'#- '{termsAndConditionsRequest,browserUserAgents}' #- '{lastsRequest,browserIpAddress}' #- '{lastsRequest,browserUserAgents}') AS data,data->'simplexPrefillPayload'->>'email' AS data_implexprefillpayload_email,data->>'email' as data_email,data->'initiationRequest'->>'browserUserAgents' as data_nitiationrequest_browseruseragents,lastsrequest_requesttime FROM bas.ib_registration",
+      "load_method": "insert-only",
+      "columns_to_hash":"data_implexprefillpayload_email,data_email,data_nitiationrequest_browseruseragents",
+      "key_field": "id"
+
+    }
+  ]
+}

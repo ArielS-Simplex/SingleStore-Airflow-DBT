@@ -1,0 +1,9 @@
+  transform_id : '3ds_events'
+  schedule_interval : "0 * * * *"
+  models:
+  - id: "3ds"
+    select: "@models/3ds/threeds.sql"
+    test: "true"
+  schema_name: 'data_model'
+  table_name: 'threeds'
+  source_conn_id: 'snowflake_conn'

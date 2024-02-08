@@ -1,0 +1,24 @@
+{
+  "mapping_name": "config_pg_prod_public_fraud_warnings",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "07/12 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "fraud_warnings",
+      "order_field": "id",
+      "sql": "SELECT id,inserted_at,import_id,payment_created_at,reported_at,payment_id,processor,card_scheme,masked_credit_card,fraud_type_raw,fraud_amount,fraud_currency,transaction_amount,transaction_currency,chargeback_occured,account_closed,(raw_data -'card_number' -'import_date'-'customer_phone'-'Last Name'-'First Name'-'customer_email'-'Customer Email'-'email_address') || jsonb_build_object('customer_phone',etl.f_mask_text(raw_data ->> 'customer_phone')) as raw_data,raw_data->>'customer_email' AS raw_data_customer_email,raw_data->>'email_address' AS raw_data_email_address,fraud_type_code,payment_captured_at FROM public.fraud_warnings",
+      "load_method": "insert-only",
+      "columns_to_hash":"raw_data_customer_email,raw_data_email_address",
+      "key_field": "id"
+    }
+  ]
+}

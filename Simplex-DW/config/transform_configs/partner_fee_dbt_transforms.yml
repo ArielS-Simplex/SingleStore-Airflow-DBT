@@ -1,0 +1,9 @@
+  transform_id : 'partner_fee'
+  schedule_interval : "17/15 * * * *"
+  models:
+  - id: "partner_fee"
+    select: "@models/partner_fee/partner_fee.sql"
+    test: "true"
+  schema_name: 'data_model'
+  table_name: 'partner_fee'
+  source_conn_id: 'snowflake_conn'

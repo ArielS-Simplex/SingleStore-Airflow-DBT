@@ -1,0 +1,9 @@
+  transform_id : 'kramer'
+  schedule_interval : "16/15 * * * *"
+  models:
+  - id: "kramer"
+    select: "@models/kramer/kramer.sql"
+    test: "true"
+  schema_name: 'data_model'
+  table_name: 'kramer'
+  source_conn_id: 'snowflake_conn'

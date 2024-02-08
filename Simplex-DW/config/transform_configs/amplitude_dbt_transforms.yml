@@ -1,0 +1,17 @@
+  transform_id : 'amplitude_events'
+  schedule_interval : "01/30 * * * *"
+  models:
+    #add here a task that is a test only that comes before everything
+  - id: "amplitude"
+    select: "@models/amplitude/amplitude_events/*"
+    test: True
+  - id: "amplitude_union"
+    select: "models/amplitude/unified/amplitude_events_unified.sql"
+    test: True
+  - id: "amplitude_events"
+    select: "models/amplitude/amplitude_events.sql"
+    test: False
+  schema_name: 'data_model'
+  table_name: 'amplitude_events'
+  source_conn_id: 'snowflake_conn'
+

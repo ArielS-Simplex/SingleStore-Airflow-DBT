@@ -1,0 +1,28 @@
+{
+  "mapping_name": "config_pg_prod_public_payments",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 100000,
+  "batch_min_rows": 10,
+  "schedule": "04/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "backward_update_period": "1 minute",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "payments",
+      "order_field": "updated_at",
+      "sql": "SELECT id,payment_id,partner_end_user_id,etl.f_mask_text(btc_address, 3) AS btc_address,created_at,status,(partner_login - 'ip' - 'cookie_session_id')  AS partner_login,(simplex_login - 'ip' - 'cookie_session_id') AS simplex_login,simplex_end_user_id,updated_at,currency,handling_user_id,total_amount,country,state,authorization_request_id,handling_at,order_id,is_tampering_attempt,JSONB_BUILD_OBJECT('phone', etl.f_mask_text(payment_request_body ->> 'phone'), 'date_of_birth', etl.f_mask_date(payment_request_body ->> 'date_of_birth', 'DD/MM/YYYY'))  AS payment_request_body,JSONB_BUILD_OBJECT('country', (validation_request_body ->> 'country'), 'state', (validation_request_body ->> 'state'))  AS validation_request_body,payment_request_body ->> 'email'    AS payment_request_body_email,validation_request_body ->> 'email'  AS validation_request_body_email,chargeback_at,chargeback_reason,processor_id,fee,quote_id,pay_to_partner_id,affiliate_fee,original_http_ref_url,email,etl.f_mask_text(phone) AS phone,update_event,update_event_inserted_at,etl.f_mask_date(date_of_birth::text) AS date_of_birth,crypto_currency,etl.f_mask_text(crypto_currency_address, 3)  AS crypto_currency_address,total_amount_usd,usd_rate,conversion_time,cc_identifier,cc_expiry_identifier,bin,mid,crypto_currency_address_tag,affiliate_site_referrer,crypto_currency_address_memo,etl.f_maxmind_ip2country(p.simplex_login ->> 'ip')  AS simplex_login_ip_country,etl.f_maxmind_ip2state(p.simplex_login ->> 'ip')   AS simplex_login_ip_state,etl.f_maxmind_ip2country(p.partner_login ->> 'ip')  AS partner_login_ip_country,etl.f_maxmind_ip2state(p.partner_login ->> 'ip') AS partner_login_ip_state FROM public.payments AS p",
+      "sql_condition": "",
+      "load_method": "merge",
+      "key_field": "id",
+      "columns_to_hash":"email,payment_request_body_email,validation_request_body_email",
+      "tags": ["ms1"]
+
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+CREATE TABLE business_params.constants(id int,
+name string,
+inserted_at TIMESTAMP_TZ,
+keytype string,
+numeric_value number(20,4),
+text_value string,
+timestamp_value TIMESTAMP_TZ,
+json_value variant,
+valid_from TIMESTAMP_TZ,
+inserted_by string,
+domain string, dw_created_at timestamp_ntz not null default CURRENT_TIMESTAMP(0)::TIMESTAMP_NTZ);

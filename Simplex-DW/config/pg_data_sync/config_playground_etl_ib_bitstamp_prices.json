@@ -1,0 +1,26 @@
+{
+  "mapping_name": "config_pg_playground_etl_ib_bitstamp_prices",
+  "source_conn_id": "postgres_playground",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "playground-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PLAYGROUND_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 250000,
+  "batch_min_rows": 10,
+  "file_format": "public.CSV_DQ_NAN",
+  "schedule": "06/12 * * * *",
+  "rules": [
+{
+      "schema_name": "etl",
+      "table_name": "bitstamp_prices",
+      "order_field": "ts",
+      "sql": "SELECT id, currency_pair, ts, price, volume FROM etl.bitstamp_prices",
+      "load_method": "insert-only",
+      "key_field": "id",
+      "tags": ["ms1"]
+
+
+    }
+  ]
+}

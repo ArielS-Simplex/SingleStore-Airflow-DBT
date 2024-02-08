@@ -1,0 +1,24 @@
+{
+  "mapping_name": "config_pg_prod_public_user_browser_events",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 50000,
+  "batch_min_rows": 10,
+  "schedule": "00/12 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "public",
+      "table_name": "user_browser_events",
+      "order_field": "id",
+      "sql": "SELECT id, event_type, (request_data - 'city' - 'zip' - 'phone' - 'address' - 'address2' - 'last_name' - 'first_name' - 'last_name_card' - 'first_name_card' - 'date_of_birth' - 'id_expiration' - 'email' #- '{paymentInstrument, owner, billingAddress, address}' #- '{paymentInstrument, owner, billingAddress, city}' #- '{paymentInstrument, owner, billingAddress, zip}' #- '{paymentInstrument, owner, dateOfBirth}' #- '{paymentInstrument, owner, firstName}' #- '{paymentInstrument, owner, lastName}' #- '{paymentInstrument, owner, phone}' #- '{paymentInstrument, owner, email}' #- '{paymentInstrument, applePay, billingContact, locality}' #- '{paymentInstrument, applePay, shippingContact}' #- '{paymentInstrument, applePay, billingContact, givenName}' #- '{paymentInstrument, applePay, billingContact, familyName}' #- '{paymentInstrument, applePay, billingContact, postalCode}' #- '{paymentInstrument, applePay, billingContact, subLocality}' #- '{paymentInstrument, applePay, billingContact, addressLines}' #- '{paymentInstrument, applePay, billingContact, phoneticGivenName}' #- '{paymentInstrument, applePay, billingContact, administrativeArea}' #- '{paymentInstrument, applePay, billingContact, phoneticFamilyName}' #- '{paymentInstrument, applePay, billingContact, subAdministrativeArea}' #- '{paymentInstrument, card}' #- '{session, ip}' #- '{session, cookie_session_id}' #- '{date_of_birth}' #- '{cookie_session_id}') #- '{paymentInstrument, googlePay, email}' #- '{paymentInstrument, googlePay, paymentMethodData, info, cardDetails}' #- '{paymentInstrument, googlePay, paymentMethodData, info, cardNetwork}' #- '{paymentInstrument, googlePay, paymentMethodData, info, billingAddress, name}' #- '{paymentInstrument, googlePay, paymentMethodData, info, billingAddress, address1}' #- '{paymentInstrument, googlePay, paymentMethodData, info, billingAddress, address2}' #- '{paymentInstrument, googlePay, paymentMethodData, info, billingAddress, address3}' #- '{paymentInstrument, googlePay, paymentMethodData, info, billingAddress, locality}' #- '{paymentInstrument, googlePay, paymentMethodData, info, billingAddress, postalCode}' #- '{paymentInstrument, googlePay, paymentMethodData, info, billingAddress, phoneNumber}' #- '{paymentInstrument, googlePay, paymentMethodData, info, billingAddress, sortingCode}' #- '{paymentInstrument, googlePay, paymentMethodData, info, billingAddress, administrativeArea}' #- '{paymentInstrument, googlePay, paymentMethodData, description}' #- '{paymentInstrument, googlePay, paymentMethodData, tokenizationData}' || JSONB_BUILD_OBJECT('ip', etl.f_ip2country(request_data -> 'session' ->> 'ip'), 'phone', etl.f_mask_text(request_data ->> 'phone'), 'date_of_birth', etl.f_mask_date(request_data ->> 'date_of_birth')) AS request_data, request_data ->> 'email' AS request_data_email, (response_data #- '{geoData,ip,city}' #- '{geoData,ip,value}') as response_data, (api_requests #- '{nexmo,request_data,ip}') || JSONB_BUILD_OBJECT('ip', etl.f_ip2country(api_requests -> 'nexmo' -> 'request_data' ->> 'ip')) AS api_requests, inserted_at, payment_id FROM public.user_browser_events ube",
+      "load_method": "insert-only",
+      "columns_to_hash": "request_data_email",
+      "key_field": "id"
+    }
+  ]
+}

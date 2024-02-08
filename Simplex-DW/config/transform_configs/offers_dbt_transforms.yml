@@ -1,0 +1,9 @@
+  transform_id : 'offer_events'
+  schedule_interval : "13/15 * * * *"
+  models:
+  - id: "offers"
+    select: "@models/offers_flatten/offers_flatten.sql"
+    test: "true"
+  schema_name: 'data_model'
+  table_name: 'offers_flatten'
+  source_conn_id: 'snowflake_conn'

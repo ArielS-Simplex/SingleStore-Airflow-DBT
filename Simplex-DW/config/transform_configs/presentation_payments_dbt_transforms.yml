@@ -1,0 +1,32 @@
+  transform_id : 'presentation_payments'
+  schedule_interval : "01/10 * * * *"
+  models:
+  - id: "presentation_payments"
+    select: "@models/presentation/payments/payments.sql"
+    test: "true"
+  schema_name: 'presentation'
+  table_name: 'payments'
+  source_conn_id: 'snowflake_conn'
+  db_and_schema_source: 'de_prd.presentation_qlik'
+  db_and_schema_target: 'simplex_raw.public'
+  source_table: 'payments'
+  target_table: 'payments'
+  date_field_source: 'CREATED_AT'
+  date_field_target: 'CREATED_AT'
+  where_source: >
+    WHERE CREATED_AT >= current_date-6
+     AND CREATED_AT < current_timestamp - interval '60 minute'
+  where_target: >
+    WHERE CREATED_AT >= current_date-6
+     AND CREATED_AT < current_timestamp - interval '60 minute'
+  where_query: " updated_at< current_timestamp - interval '5 minute' and updated_at>current_date-1 "
+  columns: >
+    id, payment_id, partner_end_user_id, btc_address, status, partner_login, simplex_login, 
+    simplex_end_user_id, updated_at, currency, handling_user_id, total_amount, country, state, 
+    authorization_request_id, handling_at, order_id, is_tampering_attempt, payment_request_body, 
+    validation_request_body, payment_request_body_email, validation_request_body_email, chargeback_at, 
+    chargeback_reason, processor_id, fee, quote_id, pay_to_partner_id, affiliate_fee, original_http_ref_url, 
+    email, phone, update_event, update_event_inserted_at, date_of_birth, crypto_currency, crypto_currency_address, 
+    total_amount_usd, usd_rate, conversion_time, cc_identifier, cc_expiry_identifier, bin, mid, 
+    crypto_currency_address_tag, affiliate_site_referrer, crypto_currency_address_memo, simplex_login_ip_country, 
+    simplex_login_ip_state, partner_login_ip_country, partner_login_ip_state

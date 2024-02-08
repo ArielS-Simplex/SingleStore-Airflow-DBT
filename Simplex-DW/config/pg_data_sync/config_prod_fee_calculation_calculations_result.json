@@ -1,0 +1,26 @@
+{
+  "mapping_name": "config_pg_prod_fee_calculation_calculations_result.json",
+  "source_conn_id": "postgres_default",
+  "s3_data_bucket": "splx-data-snowflake",
+  "s3_data_prefix": "prod-pg",
+  "target_conn_id": "snowflake_conn",
+  "target_stage": "public.S3_STAGE_PROD_PG",
+  "target_role": "SYSADMIN",
+  "batch_max_rows": 300000,
+  "batch_min_rows": 10,
+  "schedule": "06/10 * * * *",
+  "file_format": "public.CSV_DQ_NAN",
+  "rules": [
+    {
+      "schema_name": "fee_calculation",
+      "table_name": "calculations_result",
+      "order_field": "created_at",
+      "sql": "SELECT calculation_id, created_at, lp_service_fee_percent FROM fee_calculation.calculations_result",
+      "sql_condition":  "",
+      "load_method": "insert-only",
+      "volume": "high",
+      "key_field": "calculation_id",
+      "tags": ["ms1"]
+ }
+  ]
+}
