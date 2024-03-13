@@ -1,0 +1,45 @@
+{
+  "AIRFLOW_VAR_SLACK_CHANNEL_ID": "xxxxx",
+  "AIRFLOW_VAR_SLACK_TOKEN": "xxxxx",
+  "airflow_db_cleanup__max_db_entry_age_in_days": 5,
+  "datalake_flow_timeout": 30,
+  "env_config": {
+    "INFRA": "local",
+    "configs_s3_bucket": "simplex-apt-airflow-test",
+    "configs_s3_path": "config/",
+    "deduplicate_schedule": "0 0 * * *",
+    "default_timeout": 30,
+    "operator_schedule": "*/5 * * * *",
+    "datalake_flow_timeout": 30,
+    "s3_data_bucket": "splx-data-snowflake--stage",
+    "database_name": "simplex_raw_stage",
+    "region_name": "eu-west-1"
+  },
+  "salesforce": {
+    "prod": {
+      "consumer_key": "xxxxx",
+      "password": "xxxxx",
+      "privatekey": "xxxxx",
+      "security_token": "xxxxx",
+      "username": "integrations@simplex.com"
+    },
+    "slack_url": "https://hooks.slack.com/services/xxxxx",
+    "test": {
+      "consumer_key": "xxxxx",
+      "privatekey": "xxxxx",
+      "security_token": "xxxxx",
+      "username": "integrations@simplex.com.partial",
+      "password": "xxx*xxxxx"
+    }
+  },
+  "s3_events": {
+    "timedelta": 2,
+    "data_format": "%Y/%m/%d/"
+  },
+  "validation_dag_timeout": 30,
+  "dbt_time_delay": {
+    "offers_flatten": " --vars '{offers_flatten_time_delay:2}'",
+    "pix": " --vars '{pix_time_delay:2}'"
+  },
+  "bi_threeds_days": 5
+}
